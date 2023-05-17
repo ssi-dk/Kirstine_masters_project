@@ -1,0 +1,133 @@
+---
+title: "Primer design"
+output: html_document
+
+---
+
+**Loading packages**
+```{r}
+library(ape)
+library(dplyr)
+library(tidyverse)
+library(openxlsx)
+```
+
+**Load data**
+```{r}
+##MLST table  
+mlst_table=read.table("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/refseq_assembly_stats_and_mlst.tsv",sep="\t",header=TRUE)
+
+ST_TO_CC = read.xlsx ("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/Rnotebooks_KBJA/ST_TO_CC.xlsx")
+ST_TO_CC$ST<-as.character(ST_TO_CC$ST)
+
+##Roary table
+roary_table = read.table("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/roary_out_prokka/gene_presence_absence.csv",header=TRUE,sep=",")
+```
+
+**Define functions**
+```{r}
+##function prints a version of the alignment fasta file to a new file
+# add_ST_to_alignment("nuoL",mlst_table,roary_table)
+add_ST_to_alignment = function(gene_name,mlst_table,roary_table) {
+  aln = read.dna(paste0("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/potential_targets/alignments/",gene_name,".fa.aln"),"fasta")
+  roary_line = roary_table[which(roary_table$Gene==gene_name),]
+  assembly_names = colnames(roary_line)[match(labels(aln),roary_line[1,])]
+  fasta_names = paste0(assembly_names,".fna")
+  STs = mlst_table$ST[match(fasta_names,mlst_table$file)]
+  print_lines = c()
+  for (i in 1:length(labels(aln))) {
+    header = paste0(">",labels(aln)[i],"__",assembly_names[i],"__ST",STs[i])
+    seq = paste0(as.character(aln[i,]),collapse = "")
+    print_lines = c(print_lines,header,seq)
+  }
+  out_file = paste0("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/potential_targets/alignments/",gene_name,"_with_ST.fa.aln")
+  writeLines(print_lines,con=out_file)
+  print(paste0("Printed alignment with ST and isolate name in header to ",out_file))
+}
+```
+
+**Get SNP differences in subset of alignment**
+```{r}
+get_snps_in_gene_subset = function(gene_name,start,stop,mlst_table,roary_table) {
+  key_STs = c("5","8","22","398","121","15","45","30","80","1","97","59")
+  aln = read.dna(paste0("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/potential_targets/alignments/",gene_name,".fa.aln"),"fasta")
+  roary_line = roary_table[which(roary_table$Gene==gene_name),]
+  assembly_names = colnames(roary_line)[match(labels(aln),roary_line[1,])]
+  fasta_names = paste0(assembly_names,".fna")
+  STs = mlst_table$ST[match(fasta_names,mlst_table$file)]
+  if (stop-start>440) {
+    dna_dist = as.matrix(dist.dna(aln[,c(start:(start+220),(stop-220):stop)],"N"))
+  } else {
+    dna_dist = as.matrix(dist.dna(aln[,start:stop],"N"))
+  }
+  
+  colnames(dna_dist) = STs
+  rownames(dna_dist) = STs
+  dna_dist_key_STs = dna_dist[which(STs %in% key_STs),which(STs %in% key_STs)]
+  fit = hclust(as.dist(dna_dist))
+  plot(fit)
+  return(list("dist_all"=dna_dist,"dist_key"=dna_dist_key_STs))
+}
+```
+
+**NuoL, 245-727 bp**
+```{r}
+snp_distances_nuoL=get_snps_in_gene_subset("nuoL",245,727, mlst_table, roary_table)
+```
+**SNP analysis in amplicon region**
+```{r}
+##Get number of snps in the region from pos 245 to 727 in "nuoL"
+snp_distances_nuoL=get_snps_in_gene_subset("nuoL",245,727,mlst_table,roary_table)
+
+##SNP distances between all STs
+snp_distances_nuoL$dist_all
+
+##SNP distances between key STs
+snp_distances_nuoL$dist_key
+```
+
+```{r}
+##Indlæs alignment nuoL 245-727
+key_STs = c("5","8","22","398","121","15","45","30","80","1","97","59")
+aln=read.dna("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/potential_targets/blasts/nuoL/nucleotide_alignment.fasta","fasta")
+
+##Vælg en region tilsvarende amplicon 
+sub_aln = aln[,245:727]
+
+##sub_dist = dist.dna(sub_aln,"N")
+write.FASTA(sub_aln,"/Volumes/data/MPV/projects/microbiome/Aureome_development/data/potential_targets/amplicon_regions/nuoL_245-727.fasta")
+```
+
+**Find unique sequences, run script in terminal** 
+cd /srv/data/MPV/projects/microbiome/Aureome_development/data/potential_targets/amplicon_regions
+python3 /srv/data/MPV/THEJ/scripts/uniquify_generic.py nuoL_245-727.fasta nuoL_245-727_uniq.fasta 
+```{r}
+tbl=read.table("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/potential_targets/amplicon_regions/nuoL_245-727_uniq_table.txt",header=TRUE,sep="\t")
+```
+
+
+```{r}
+tbl$GCF = unlist(lapply(tbl$ID, function(x) strsplit(x,"__")[[1]][1]))
+tbl$file = paste0(tbl$GCF,"_genomic.fna")
+tbl$ST = mlst_table$ST[match(tbl$file,mlst_table$file)]
+tbl<-tbl %>% left_join(ST_TO_CC,by="ST")
+```
+
+```{r}
+ST_seq_table = as.data.frame.matrix(table(tbl$uniq_fasta_ID,tbl$ST))
+CC_seq_table<-as.data.frame.matrix(table(tbl$uniq_fasta_ID,tbl$CC.group))
+CC_seq_table
+```
+
+
+```{r}
+sub_mat = as.matrix(CC_seq_table)
+sub_mat[sub_mat>0] = 1
+which(rowSums(sub_mat)>1)
+```
+
+```{r}
+sub_tbl = ST_seq_table[,which(colnames(ST_seq_table) %in% key_STs)]
+sub_tbl
+```
+

@@ -1,0 +1,739 @@
+---
+title: "Staphylococcus aureus NuoL gene, all cutoffs - Aureuome Methodology"
+output: html_document
+---
+
+**Loading packages** 
+```{r}
+library(Rcpp)
+library(dada2)
+library(phyloseq)
+library(ggplot2)
+library(Biostrings)
+library(microbiome)
+library(devtools)
+library(BiocGenerics)
+library(plyr)
+library(tidyverse)
+library(dplyr)
+library(cowplot)
+library(xlsx)
+library(readxl)
+library(reshape2) 
+library(dplyr)
+library(ggthemes)
+library(dendextend)
+```
+
+**Set color theme**
+```{r}
+theme_set(theme_bw())
+
+color_seqCountable<-c("#AEB6BF","#E32828","#1F618D","#D6EAF8","#D6EAF8")
+
+color_seqCountable_negativeControls<-c("#AEB6BF","#1B4F72","#17202A")
+
+
+my.col_others <- c("CC22"="#bcbcbc",
+"CC15"="#f4d6be",
+"M2"="#d9d2e9",
+"CC80"="#f4cccc",
+"M1"="#ff835c",
+"M3"="#FFEBEE",
+"M5"="#DCEDC8",
+"M7"="#deeaee",
+"M8"="#fbcadb")
+
+my.col_Mixed <- c("CC15/CC97"="#bdcebe","M2/CC1/M1/-"="#e6e2d3","CC22/CC8/-"="#87bdd8","M2/CC1"="#36486b","M2/CC80"="#7888e0")
+
+my.col_ASV <- c("ASV_1" = "#c2d4dd","ASV_2"="#8ca3a3","ASV_3"="#bdcebe","ASV_4"="#ada397","ASV_5"="#b9936c","ASV_6"="#dac292","ASV_7"="#e6e2d3","ASV_8"="#87bdd8","ASV_9"="#92a8d1","ASV_10"="#fff2cc","ASV_11"="#ebab79","ASV_12"="#d5f4e6","ASV_13"="#bdcebe","ASV_14"="#ff9696","ASV_15"="#c2d4dd","ASV_16"="#36486b","ASV_17"="#ada397","ASV_18"="#ada397","ASV_19"="#b9936c","ASV_20"="#7888e0","ASV_21" = "#c2d4dd","ASV_22"="#82E0AA","ASV_23"="#bdcebe","ASV_24"= "#838060","ASV_25"="#8ca3a3","ASV_26" = "#c2d4dd","ASV_27"="#ada397","ASV_28"="#fff2cc","ASV_29"="#ffef96","ASV_30"="#36486b","ASV_31" = "#c2d4dd")
+
+my.col_CC <- c("CC1" = "#c2d4dd","CC30/-"="#8ca3a3","CC15/CC97"="#bdcebe","CC5"="#ada397","CC398"="#b9936c","CC45"="#dac292","M2/CC1/M1/-"="#e6e2d3","CC22/CC8/-"="#87bdd8","M6"="#92a8d1","CC8"="#fff2cc","CC97"="#ebab79","CC59/-"="#d5f4e6","CC15/CC97"="#bdcebe","M4"="#ff9696","CC1"="#c2d4dd","M2/CC1"="#36486b","CC5"="#ada397","CC5"="#ada397","CC398"="#b9936c","M2/CC80"="#7888e0","CC1" = "#c2d4dd","CC121/-"="#82E0AA","CC15/CC97"="#bdcebe","-"= "#838060","CC30/-"="#8ca3a3","CC1" = "#c2d4dd","CC5"="#ada397","CC8"="#fff2cc","-"="#ffef96","M2/CC1"="#36486b","CC1" = "#c2d4dd")
+
+my.col_ST<- c("ST1/ST188/ST3926/ST81/ST474" = "#c2d4dd","ST30/ST36/ST34/ST243/ST130/ST39/ST700/ST7317-"="#8ca3a3","ST15/ST582/ST1535/ST2126/ST1153/ST3249"="#bdcebe","ST5/ST105/ST764/ST228/ST125"="#ada397","ST398/ST1232"="#b9936c","ST45/ST508/ST3154"="#dac292","ST772/ST20/ST12/ST672/ST1281/ST1156/ST573/ST901/ST1460"="#e6e2d3","ST22/ST72/ST7"="#87bdd8","ST291/ST3126/ST5561/ST6272"="#92a8d1","ST8/ST239/ST609/ST612/ST250/ST247"="#fff2cc","ST97/ST352/ST464/ST71/ST1687/ST2459/ST1179/ST2219"="#ebab79","ST59/ST338/ST87/ST4513"="#d5f4e6","ST15/ST582/ST1535/ST2126/ST1153/ST3249"="#bdcebe","ST509/ST7750/ST89"="#ff9696","ST1/ST188/ST3926/ST81/ST474"="#c2d4dd","ST25/ST1292/ST26/ST2971/ST3011/ST834"="#36486b","ST5/ST105/ST764/ST228/ST125"="#ada397","ST5/ST105/ST764/ST228/ST125"="#ada397","ST398/ST1232"="#b9936c","ST6/ST1217/ST1613/ST6266"="#7888e0","ST1/ST188/ST3926/ST81/ST474" = "#c2d4dd","ST121/ST151/ST504/ST1210/ST3140/ST705/ST51"="#82E0AA","ST15/ST582/ST1535/ST2126/ST1153/ST3249"="#bdcebe","ST7754"= "#838060","ST30/ST36/ST34/ST243/ST130/ST39/ST700/ST7317"="#8ca3a3","ST1/ST188/ST3926/ST81/ST474" = "#c2d4dd","ST5"="#ada397","ST1073"="#fff2cc","ST1073"="#ffef96","ST25/ST1292/ST26/ST2971/ST3011/ST834"="#36486b","ST126/ST7693" = "#c2d4dd")
+  
+my.col_CC_from_culture <- c("CC1"="#c2d4dd","CC12"="#e6e2d3","CC15"="#bdcebe","CC182"="#DCEDC8","CC22"="#87bdd8","CC30"="#8ca3a3","CC398"="#b9936c","CC45"="#dac292","CC5"="#ada397","CC509"="#ff9696","CC59"="#d5f4e6","CC7"="#87bdd8","CC8"="#fff2cc","CC97"="#ebab79","Culture negative"="#C39BD3","NA"="#000000","Unknown"="#EE524E")
+  
+Color_samplesite<-c("AD_LS"="#AEB6BF","AD_NLS"="#3498DB","AD_ nose"="#85C1E9","control_nose"="#1F618D")
+
+```
+
+
+**Load data**
+```{r}
+taxtable=read.table("/Volumes/data/MPV/projects/microbiome/Aureome_development/DADA2_pipelines/NuoL1_blast_output/NuoL1_seq74_tax_and_counts_BLAST_detailed copy.csv",header = TRUE,sep = ",")
+
+new_taxtable = data.frame()
+for (i in 1:length(taxtable$blast_assignment)) {
+  new_taxtable = rbind(new_taxtable,strsplit(taxtable$blast_assignment[i],";")[[1]])
+}
+colnames(new_taxtable) = c("Species","Clonal_complex","Sequence_Type","Sequence")
+rownames(new_taxtable) = taxtable$ASV
+new_asvtable= taxtable[,-c(1:4)]
+rownames(new_asvtable) = taxtable$ASV
+
+new_asvtable<-new_asvtable %>% mutate_all(funs(ifelse(. < sum(.)*0.08, 0, .)))
+```
+
+**Create new dataset**
+```{r}
+meta_smed<-read_excel("/Volumes/data/MPV/projects/microbiome/Aureome_development/Lab/Primary samples/Meta_data_from_Sofie.xlsx")
+meta_spa<-read_excel("/Volumes/data/MPV/projects/microbiome/Aureome_development/Lab/Primary samples/Samples_Seq74_KBJA.xlsx")
+qPCRtable<-read_excel("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/Rnotebooks_KBJA/qPCR/aPCRtable_all.xlsx")
+
+qpcr<-qPCRtable %>% filter(!is.na(SampleID)) %>% select(SampleID,Copy_number) %>%
+  distinct(SampleID,.keep_all = TRUE) %>%
+  filter(SampleID!="Neg_lys") %>%
+  mutate(Log_copynumber=log10(Copy_number))
+
+##Samlpe_data, separation based on sampleID
+sam_df = data.frame(SampleID = colnames(new_asvtable)) %>% 
+  mutate(Type = case_when(grepl("Mock",SampleID) ~ "Mock",
+                        grepl("Neg",SampleID) ~ "Neg control",
+                        grepl("NEG",SampleID) ~ "Neg control",
+                        grepl("_LS",SampleID) ~ "LS skin",
+                        grepl("_NLS_",SampleID) ~ "NLS skin",
+                        grepl("Nose",SampleID) ~ "Nose",
+                         grepl("NOSE",SampleID) ~ "Nose",
+                         grepl("nose",SampleID) ~ "Nose",
+                          TRUE ~ "Sample"))
+
+sam_df$SampleID_v2<-gsub(pattern="nose",replacement = "Nose",sam_df$SampleID)
+sam_df$SampleID_v2<-gsub(pattern="NOSE",replacement = "Nose",sam_df$SampleID_v2)
+
+sam_df<-sam_df %>%
+  separate(SampleID_v2,c("SampleID_short","remove"),sep="_n",remove=FALSE) %>%
+  select(-remove) %>%
+  left_join(meta_smed,by=c("SampleID_short"="sample_id")) %>%
+  left_join(meta_spa,by="SampleID_short") %>%
+  left_join(qpcr,by=c("SampleID_short"="SampleID")) %>%
+  mutate(replicate=case_when(
+    grepl("_n_",SampleID) ~"sample",
+    grepl("_n1_",SampleID) ~"sample",
+    grepl("_n2_",SampleID) ~"duplicate",
+  ))
+
+
+sam_df<-sam_df %>% mutate(Mock=case_when(
+  SampleID_short=="MockE1" ~"Even mock",
+  SampleID_short=="MockE2" ~"Even mock",
+  SampleID_short=="MockE3" ~"Even mock",
+  SampleID_short=="MockE4" ~"Staggered mock",
+ ))
+
+sam_df<-sam_df %>% mutate(Type2=case_when(
+  samplesite=="AD_LS" ~"AD_LS",
+  samplesite=="AD_NLS" ~"AD_NLS",
+  samplesite=="AD_nose" ~"AD_Nose",
+  samplesite=="AD_Nose" ~"AD_Nose",
+  samplesite=="AD_NOSE" ~"AD_Nose",
+  samplesite=="Control_nose" ~"Healthy_Nose",
+  Type=="Neg control" ~"Negative control",
+  Type=="Mock" ~"Mock")) %>%
+  mutate(samplesite=ifelse(samplesite=="AD_NOSE","AD_nose",samplesite))
+  
+
+rownames(sam_df) = sam_df$SampleID
+```
+
+**Create phyloseq**
+```{r}
+ps<-phyloseq::phyloseq(otu_table(new_asvtable,taxa_are_rows = TRUE),sample_data(sam_df),tax_table(as.matrix(new_taxtable)))
+sample_data(ps)$SeqCount<-sample_sums(ps)
+ps # 186
+ps = prune_samples(sample_sums(ps)>=500, ps)
+ps #147
+ps=subset_samples(ps,Type!="Mock")
+ps
+```
+**Relative abundance**
+```{r}
+relative<-transform_sample_counts(ps,function(x) x/sum(x))
+ps_df_rel<-psmelt(relative) %>% arrange(OTU,Sample) %>% mutate(Abundance=Abundance*100)
+
+ps_df_rel %>% arrange(Sample)
+```
+
+**Removal of replicates**
+```{r}
+id_keep<- ps_df_rel %>%      # id_keep = includng only one of the replicate samples based of seqcount
+  distinct(Sample,.keep_all = T) %>%
+  arrange(desc(SeqCount)) %>%
+  distinct(SampleID_short, .keep_all = T) %>% 
+  pull(Sample)
+
+ps_df_rel <- ps_df_rel %>% 
+  filter(Sample %in% id_keep)
+
+length(unique(ps_df_rel$Sample))
+```
+
+```{r}
+ps<-subset_samples(ps,SampleID %in% id_keep)
+relative<-subset_samples(relative,SampleID %in% id_keep)
+```
+
+
+**Dendogram, CC lineage clustering, analysis of AD severity**
+```{r}
+#Dendrogram, for sample ordering
+
+set.seed(100)
+# clustering
+s_dist<-phyloseq::distance(relative, method = "bray")
+s_fit<-hclust(s_dist,method = "ward.D")
+
+# Build dendrogram object from hclust results using denextend package
+s_dend<-as.dendrogram(s_fit)                                
+
+# find the order of samples in dendrogram
+s_order<-get_leaves_attr(s_dend, "label")   
+
+#plot
+s_dend %>% set("labels_cex", 0.4) %>% plot
+#plot(s_dend)
+
+s_cluster<-cutree(s_fit,k=5)
+
+sample_data(relative)$cluster<-s_cluster
+
+s_dend %>% set("labels_cex", 0.8) %>% plot
+
+```
+
+```{r}
+ps_df_rel %>% arrange(Sample) %>% filter(Abundance>0) %>% select(Sample,s_cluster)
+```
+
+```{r}
+table(s_cluster)
+```
+
+
+```{r,fig.width=20,fig.height=15}
+ps_df_rel<-psmelt(relative) %>%
+  mutate(cluster_order=case_when(
+    cluster=="1" ~"Cluster 1",
+    cluster=="2"~ "Cluster 5",
+    cluster=="3"~ "Cluster 4",
+    cluster=="4"~ "Cluster 3",
+    cluster=="5"~ "Cluster 2"
+  ))
+
+#order samples based on the wardD dendrogram
+ps_df_rel$Sample<-factor(ps_df_rel$Sample, levels = s_order)
+
+Color_samplesiteny<-c("AD_LS"="#AEB6BF","AD_NLS"="#3498DB","AD_nose"="#85C1E9","Control_nose"="#1F618D")
+Color_severe<-c("NA"="#ECEFF1","mild"="#FFF3E0","moderate"="#FFE0B2","severe"="#FFAB91")
+
+
+##CC plot
+p<-ggplot(ps_df_rel,aes(x=SampleID, y=Abundance, fill=Clonal_complex))+
+  geom_bar(aes(),stat="identity",position="stack")+
+  theme_bw()+
+  theme(legend.position="bottom")+
+  theme(axis.text.x = element_blank())+
+  #theme(axis.text.x=element_text(angle=90, size=12))+
+  scale_fill_manual(values=my.col_CC)+
+  labs(y="Relative abundance (%)",fill="Lineage")+
+  theme(legend.text = element_text(size=15))+theme(strip.background =element_rect(fill="white"))+
+  facet_grid(.~cluster_order,scales="free_x",space="free")
+
+# lower bar
+sub<-ps_df_rel[,c("SampleID","cluster_order","samplesite")]
+sub_m <- melt(sub, id.vars = c("SampleID","cluster_order")) 
+sub_m$SampleID<-factor(sub_m$SampleID,levels=s_order)
+
+
+p2<-ggplot(sub_m, aes(x=SampleID, y=variable,fill(samplesite)))+
+  geom_tile(aes(fill=value),width = 1.0)+ 
+  theme(axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x = element_blank(),
+       # axis.title.y=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y = element_blank())+ theme(legend.text = element_text(size=15))+
+ scale_fill_manual(values = c(Color_samplesiteny))+
+  labs(y="chnage")+
+  facet_grid(.~cluster_order,scales="free_x",space="free")+
+  theme(strip.background =element_rect(fill="white"))+
+  theme(legend.position="bottom")
+
+
+# lower bar
+sub<-ps_df_rel[,c("SampleID","cluster_order","SCORAD_group")]
+sub_m <- melt(sub, id.vars = c("SampleID","cluster_order")) 
+sub_m$SampleID<-factor(sub_m$SampleID,levels=s_order)
+sub_m$value=factor(sub_m$value,levels=c("mild","moderate","severe","NA"))
+
+p3<-ggplot(sub_m, aes(x=SampleID, y=variable))+
+  geom_tile(aes(fill=value),width = 1.0)+ 
+  theme(axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x = element_blank(),
+       # axis.title.y=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y = element_blank())+ theme(legend.text = element_text(size=15))+
+ scale_fill_manual(values = c(Color_severe))+
+  labs(y="chnage")+
+  facet_grid(.~cluster_order,scales="free_x",space="free")+
+  theme(strip.background =element_rect(fill="white"))+
+  theme(legend.position="bottom")
+
+plot<-cowplot::plot_grid(p,p2,p3,align = 'v',ncol=1,rel_heights = c(20,4,4),axis = 'l')
+plot
+
+ggsave(plot, device = "png", width = 60, height = 25, units = "cm", file ="/Users/kirstinebjergandersen/Desktop/severity.png")
+```
+
+```{r}
+meta_AD<-data.frame(sample_data(relative)) %>% filter(group=="AD") %>%
+  mutate(cluster_order=case_when(
+    cluster=="1" ~"Cluster 1",
+    cluster=="2"~ "Cluster 5",
+    cluster=="3"~ "Cluster 4",
+    cluster=="4"~ "Cluster 3",
+    cluster=="5"~ "Cluster 2"
+  ))
+
+
+table(meta_AD$cluster_order,meta_AD$SCORAD_group)
+
+prop.table(table(meta_AD$cluster_order,meta_AD$SCORAD_group),1)
+```
+
+**Test of clonality, mono vs. polyclonality**
+```{r}
+##Sepereret i 1, 2 eller 3 CC lineages
+
+tmp<-ps_df_rel%>% 
+  mutate(Presence=ifelse(Abundance==0,0,1)) %>%   # make a presence/absence coloumn based on abudance 
+  filter(Presence==1) %>%  
+  mutate(Clonal_complex= ifelse(Clonal_complex=="-","ST_with_no_CC",Clonal_complex)) %>% # change the "-" value in Clonal_complex variable, so it has more meaning. EG ST7754, not assigned a CC group. due to update of refseq database after coregenome phylogeny. 
+  group_by(Sample) %>%
+  mutate(richness=n()) %>%
+  ungroup() %>%
+  distinct(Sample,.keep_all = TRUE)
+
+tmp$richness<-factor(tmp$richness)
+
+'numbers'
+table(tmp$samplesite,tmp$richness)
+'percentage, per site'
+prop.table(table(tmp$samplesite,tmp$richness),1)
+```
+```{r}
+##Sepereret i 1, 2-3 CC lineages
+tmp<-tmp %>% mutate(richness_comb=ifelse(richness==1,"1","2-3"))
+'numbers'
+table(tmp$samplesite,tmp$richness_comb)
+'percentage, per site'
+prop.table(table(tmp$samplesite,tmp$richness_comb),1)
+```
+**Statistical Fisher test**
+```{r}
+'AD Nose vs LS'
+tmp2<-tmp %>% filter(samplesite %in% c("AD_LS","AD_nose"))
+tmp2$samplesite<-factor(tmp2$samplesite,levels=c("AD_nose","AD_LS"))
+fisher.test(table(tmp2$samplesite,tmp2$richness_comb))
+
+#Contique with other sample sites. 
+
+'Nose vs NLS'
+tmp2<-tmp %>% filter(samplesite!="AD_LS")
+tmp2$samplesite<-factor(tmp2$samplesite,levels=c("AD_nose","AD_NLS"))
+fisher.test(table(tmp2$samplesite,tmp2$richness_comb))
+
+'LS vs NLS'
+tmp2<-tmp %>% filter(samplesite!="AD_nose")
+tmp2$samplesite<-factor(tmp2$samplesite,levels=c("AD_LS","AD_NLS"))
+fisher.test(table(tmp2$samplesite,tmp2$richness_comb))
+
+```
+
+
+**sankey plot, Co-colonization patterns**
+```{r}
+ps_df_rel_AD <- ps_df_rel %>%
+  filter(group=="AD")
+ps_df_rel_AD$OTU<-gsub(pattern = "_",replacement = "",x=ps_df_rel_AD$OTU)
+
+tmp0<- ps_df_rel_AD %>% # count how many patient are included with how mnay samples
+  distinct(Sample, .keep_all = T) %>%
+   group_by(id) %>% 
+  count()
+table(tmp0$n)
+
+id_remove<-tmp0 %>% filter(n==1) %>% pull(id)
+
+ps_df_rel_AD_v2<-ps_df_rel_AD%>% 
+  filter(!id %in% id_remove) %>%      # exclude the patient woth onle samplesite included
+  mutate(Presence=ifelse(Abundance==0,0,1)) %>%   # make a presence/absence coloumn based on abudance 
+  filter(Presence==1) %>%  
+  mutate(Clonal_complex= ifelse(Clonal_complex=="-","ST_with_no_CC",Clonal_complex)) %>% # change the "-" value in Clonal_complex variable, so it has more meaning. EG ST7754, not assigned a CC group. due to update of refseq database after coregenome phylogeny. 
+  mutate(Clonal_complex_v2=paste0(Clonal_complex, " [",OTU,"]")) %>%
+  group_by(Sample) %>%
+  mutate(richness=n()) %>%
+  #arrange(Abundance) %>%
+  #arrange(Clonal_complex) %>%
+  #mutate(CC_comb= paste(Clonal_complex,collapse=" & ")) %>%  # create new varibale, combing all identifed CC types within a sample
+  arrange(Clonal_complex_v2) %>%
+  mutate(CC_comb= paste(Clonal_complex_v2,collapse=" & ")) %>%  # create new varibale, combing all identifed CC types within a sample
+  ungroup() %>%
+  distinct(Sample,.keep_all = T) %>%
+  select(SampleID_short,id,samplesite,CC_comb,SeqCount,richness)
+  
+length(unique(ps_df_rel_AD_v2$CC_comb))   # 21 unqie CC combinations within a sample
+sort(unique(ps_df_rel_AD_v2$CC_comb))   
+length(unique(ps_df_rel_AD_v2$id))  # 24 patients included in the analysis
+
+
+#insert empty data for all patients with "missing" samples... so all patients included have 3 samples in df
+ids_inclued<-unique(ps_df_rel_AD_v2 %>% pull(id))
+
+id_w_ls<-ps_df_rel_AD_v2 %>% filter(samplesite=="AD_LS") %>% pull(id)
+setdiff(ids_inclued,id_w_ls)  # all patients have a LS sample included
+
+id_w_nls<-ps_df_rel_AD_v2 %>% filter(samplesite=="AD_NLS") %>% pull(id)
+ids_wo_nls<-setdiff(ids_inclued,id_w_nls) # 12 samples with no NLS sample
+df_nls<-data.frame(id=ids_wo_nls,samplesite=rep("AD_NLS"),CC_comb=rep("no sample"))
+
+id_w_n<-ps_df_rel_AD_v2 %>% filter(samplesite=="AD_nose") %>% pull(id)
+ids_wo_n<-setdiff(ids_inclued,id_w_n) # 1 samples with no Nose sample
+df_n<-data.frame(id=ids_wo_n,samplesite=rep("AD_nose"),CC_comb=rep("no sample"))
+
+tmp<-rbind(df_nls,df_n)
+tmp2<-ps_df_rel_AD_v2 %>% select(id,samplesite,CC_comb) %>% bind_rows(tmp)
+```
+
+
+```{r,fig.height=5,fig.width=8}
+library(ggalluvial)
+tmp2$samplesite<-factor(tmp2$samplesite, levels=c("AD_nose","AD_LS","AD_NLS"))
+
+
+col_sankey<-c(
+"CC1 [ASV1]" = "#184cf9",                                       
+"CC1 [ASV1] & CC45 [ASV6]" = "#4172ac",                          
+"CC1 [ASV1] & M4 [ASV14]" = "#5e8cc2",
+"CC1 [ASV1] & CC22/CC8/- [ASV8]" = "#95b4d7", 
+
+"CC8 [ASV10]" = "#f4dc10",
+"CC15/CC97 [ASV3] & CC8 [ASV10]" ="#efe273",
+"CC30/- [ASV2] & CC8 [ASV10]" ="#f8f0b8",
+
+"CC22/CC8/- [ASV8]" = "#e66e20",                                 
+"CC22/CC8/- [ASV8] & CC45 [ASV6]" ="#ea965e",                   
+"CC22/CC8/- [ASV8] & M2/CC1/M1/- [ASV7]" ="#f3c2a2", 
+ 
+"CC15/CC97 [ASV3]" ="#45a819",
+"CC15/CC97 [ASV3] & CC22/CC8/- [ASV8]" ="#618c4e",              
+"CC15/CC97 [ASV3] & CC22/CC8/- [ASV8] & CC45 [ASV6]" ="#79a964",
+"CC1 [ASV15] & CC15/CC97 [ASV3] & CC45 [ASV6]" ="#95bb85", 
+"CC121/- [ASV22] & CC15/CC97 [ASV3]"="#cedfc6", 
+  
+"CC45 [ASV6]" ="#7d02e3", 
+"CC5 [ASV4]" ="#cc02e3",
+"CC45 [ASV6] & CC5 [ASV4]" ="#c59ac9",                          
+
+"M6 [ASV9]" = "#20c5ba",
+"CC15/CC97 [ASV3] & M6 [ASV9]" ="#8ebfbc", 
+
+"CC398 [ASV5]"="#8c700e", 
+
+"no sample"="#cececd")
+
+
+tmp2$CC_comb<-factor(tmp2$CC_comb,levels=c(
+"CC1 [ASV1]",                                       
+"CC1 [ASV1] & CC45 [ASV6]",                          
+"CC1 [ASV1] & M4 [ASV14]",
+"CC1 [ASV1] & CC22/CC8/- [ASV8]", 
+
+"CC8 [ASV10]",
+"CC15/CC97 [ASV3] & CC8 [ASV10]",
+"CC30/- [ASV2] & CC8 [ASV10]",
+
+"CC22/CC8/- [ASV8]",                                 
+"CC22/CC8/- [ASV8] & CC45 [ASV6]",                   
+"CC22/CC8/- [ASV8] & M2/CC1/M1/- [ASV7]", 
+ 
+"CC15/CC97 [ASV3]",
+"CC15/CC97 [ASV3] & CC22/CC8/- [ASV8]",              
+"CC15/CC97 [ASV3] & CC22/CC8/- [ASV8] & CC45 [ASV6]",
+"CC1 [ASV15] & CC15/CC97 [ASV3] & CC45 [ASV6]", 
+"CC121/- [ASV22] & CC15/CC97 [ASV3]", 
+  
+"CC45 [ASV6]", 
+"CC5 [ASV4]",
+"CC45 [ASV6] & CC5 [ASV4]",                          
+
+"M6 [ASV9]",
+"CC15/CC97 [ASV3] & M6 [ASV9]", 
+
+"CC398 [ASV5]", 
+
+"no sample"))
+
+p_sankey<-ggplot(tmp2,aes(x = samplesite, stratum = CC_comb, alluvium = id,fill = CC_comb)) +
+  scale_fill_manual(name = "", values = col_sankey) +
+  geom_flow(alpha=0.75) +
+  geom_stratum() +
+  #theme(panel.border = element_rect(colour = "black", fill=NA, size=1))+
+  theme(axis.title.x = element_blank(), axis.text.x = element_text(size = 10,face="bold"))+
+  theme(axis.ticks.y = element_blank(),axis.text.y = element_blank())
+
+p_sankey
+```
+
+**CC lineage co-colonization between sample sites**
+```{r}
+#tmp2test<-tmp2%>% 
+  mutate(Presence=ifelse(CC_comb=="CC1 [ASV1]")) %>%   
+  filter(Presence=="yes") # %>%  
+  mutate(Clonal_complex= ifelse(Clonal_complex=="-","ST_with_no_CC",Clonal_complex)) %>% # change the "-" value in Clonal_complex variable, so it has more meaning. EG ST7754, not assigned a CC group. due to update of refseq database after coregenome phylogeny. 
+  group_by(Sample) %>%
+  mutate(richness=n()) %>%
+  ungroup() %>%
+  distinct(Sample,.keep_all = TRUE)
+
+tmp$richness<-factor(tmp$richness)
+
+'numbers'
+table(tmp$samplesite,tmp$richness)
+'percentage, per site'
+prop.table(table(tmp$samplesite,tmp$richness),1)
+
+```
+
+
+**qPCR (absolute abundance) in different sample sites**
+```{r}
+meta<-data.frame(sample_data(ps))
+p<-ggplot(meta, aes(x=samplesite,y=log10(Copy_number), fill=samplesite))+
+  geom_boxplot()+
+  geom_jitter()+
+  theme(axis.text.x=element_text(angle=0, size=8))+labs(y="Absolute abundance(Log10 Copy number)",x="")+theme(
+  panel.background = element_rect(fill = "white",
+                                colour = "white")) + theme(panel.border = element_blank(),
+          panel.grid.major = element_blank(),
+          panel.grid.minor = element_blank(),
+          axis.line = element_line(size = 0.5, linetype = "solid",
+                                   colour = "black"))+ scale_fill_manual(values = c(Color_samplesiteny))
+p
+
+ggsave(p, device = "png", width = 20, height = 15, units = "cm", file ="/Users/kirstinebjergandersen/Desktop/qpcrsamplesite.png")
+
+```
+
+
+**Wilcox test of correlation between sample site and copy number**
+```{r}
+##LS vs. NLS
+wilcox.test(x=meta$Log_copynumber[meta$samplesite=="AD_LS"],y=meta$Log_copynumber[meta$samplesite=="AD_NLS"],paried=FALSE)
+
+##NLS vs. AD nose
+wilcox.test(x=meta$Log_copynumber[meta$samplesite=="AD_nose"],y=meta$Log_copynumber[meta$samplesite=="AD_NLS"],paried=FALSE)
+
+##LS vs. AD nose
+wilcox.test(x=meta$Log_copynumber[meta$samplesite=="AD_LS"],y=meta$Log_copynumber[meta$samplesite=="AD_nose"],paried=FALSE)
+
+##Control nose vs. AD nose
+wilcox.test(x=meta$Log_copynumber[meta$samplesite=="AD_nose"],y=meta$Log_copynumber[meta$samplesite=="Control_nose"],paried=FALSE)
+
+
+
+```
+
+**adjust p values**
+```{r}
+p_values<-c(0.006306,0.05641,0.1346,0.2875)
+
+
+##Benjamini-Hocberg adjustment (FDR)
+adjusted_p_values<-p.adjust(p_values,method = "BH")
+
+adjusted_p_values
+```
+
+**Create new phyloseq - barplot with 8% cutoff to test concordance between Spa typed categorized CC lineages and sequenced CC lineages**
+```{r}
+##8 cutoff
+new_asvtable8<-new_asvtable %>% mutate_all(funs(ifelse(. < sum(.)*0.08, 0, .)))
+
+ps8<-phyloseq::phyloseq(otu_table(new_asvtable8,taxa_are_rows = TRUE),sample_data(sam_df),tax_table(as.matrix(new_taxtable)))
+sample_data(ps8)$SeqCount<-sample_sums(ps8)
+```
+
+**Create new phyloseq**
+```{r}
+ps8<-phyloseq::phyloseq(otu_table(new_asvtable8,taxa_are_rows = TRUE),sample_data(sam_df),tax_table(as.matrix(new_taxtable)))
+sample_data(ps8)$SeqCount<-sample_sums(ps8)
+```
+
+**Relative abundance**
+```{r}
+relative8<-transform_sample_counts(ps8,function(x) x/sum(x))
+ps_df8<-psmelt(relative8) %>% arrange(OTU,Sample)
+ps_df_rel8<-psmelt(relative8) %>% arrange(OTU,Sample) %>% mutate(Abundance=Abundance*100)
+```
+
+**Barplot showing CC types as well as seqdepth**
+```{r,fig.width=20,fig.height=15}
+meta_out8<-data.frame(sample_data(ps8))
+meta_out8<-meta_out8[with(meta_out8,order(SeqCount)),]
+order<-meta_out8$SampleID
+ps_df_rel8$SampleID<-factor(ps_df_rel8$SampleID,levels=order)
+meta_out8$SampleID<-factor(meta_out8$SampleID,levels=order)
+
+meta_out8$inclusion_threshold<-ifelse(meta_out8$SeqCount<500,"excluded","included")
+ps_df_rel8$inclusion_threshold<-ifelse(ps_df_rel8$SeqCount<500,"excluded","included")
+
+##Seqcount
+p1<-ggplot(meta_out8%>% filter(Type!="Neg control")%>% filter(Type!="Mock") %>%arrange(SeqCount))+aes(x=SampleID, y=log10(SeqCount))+
+  geom_bar(aes(),stat="identity",position="stack")+
+  theme_bw()+
+  theme(axis.text.x=element_blank())+
+  #theme(axis.text.x=element_text(angle=90, size=8))
+  labs(y="Sequence counts")+
+  #geom_hline(yintercept = 500,color="red")+
+  #geom_vline(xintercept = "AD39_NLS_n2_S98",color="red",size=1)+
+  facet_grid(.~inclusion_threshold,scales="free_x",space="free")+
+  theme(strip.background =element_rect(fill="white"))+
+  theme(legend.position="none")
+
+##CC plot
+p2<-ggplot(ps_df_rel8%>% filter(Type!="Neg control") %>% filter(Type!="Mock")%>% arrange(SeqCount))+aes(x=SampleID, y=Abundance, fill=Clonal_complex)+
+  geom_bar(aes(),stat="identity",position="stack")+
+  theme_bw()+
+  theme(legend.position="bottom")+
+  theme(axis.text.x = element_blank())+
+  #theme(axis.text.x=element_text(angle=90, size=8))+
+  scale_fill_manual(values=my.col_CC)+
+  labs(y="Relative abundance (%)",fill="Lineage")+
+  theme(legend.text = element_text(size=15))+theme(strip.background =element_rect(fill="white"))+
+  facet_grid(.~inclusion_threshold,scales="free_x",space="free")
+
+# lower bar
+sub8<-ps_df_rel8[,c("SampleID","inclusion_threshold","Type","CC_from_culture")]
+sub_m8 <- melt(sub8, id.vars = c("SampleID","Type","inclusion_threshold")) 
+sub_m8$SampleID<-factor(sub_m8$SampleID,levels=order)
+
+
+p3<-ggplot(sub_m8 %>% filter(Type!="Neg control") %>% filter(Type!="Mock"), aes(x=SampleID, y=variable))+
+  geom_tile(aes(fill=value),width = 1.0)+ 
+  theme(axis.ticks.x=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.x = element_blank(),
+       # axis.title.y=element_blank(),
+        axis.text.x=element_blank(),
+        axis.text.y = element_blank())+ theme(legend.text = element_text(size=15))+
+  scale_fill_manual(values = c(my.col_CC_from_culture))+
+  labs(y="Spa CC")+
+  facet_grid(.~inclusion_threshold,scales="free_x",space="free")+
+  theme(strip.background =element_rect(fill="white"))+
+  theme(legend.position="bottom")
+
+seqCount_CC_SPA8<-cowplot::plot_grid(p1,p2,p3,align = 'v',ncol=1,rel_heights = c(3,20,6),axis = 'l')
+seqCount_CC_SPA8
+
+ggsave(seqCount_CC_SPA8, device = "png", width = 60, height = 25, units = "cm", file ="/Users/kirstinebjergandersen/Desktop/seqCount_CC_SPA9.png")
+```
+
+**concordance between spa-typed and sequenced classified CC lineages**
+```{r}
+library(stringr)
+df_smed<-ps_df_rel %>%
+filter(SeqCount>500) %>%
+filter(Type %in% c("Nose","LS skin","NLS skin")) %>%
+filter(!CC_from_culture %in% c("Unknown","Culture negative","NA"))
+# Dvs, df hvor alle prøver med <500 reads er ekskluderet, alle neg + pos kontroller er ekskluderet, og alle ASV count below 8% abundance within a sample er ændret til 0 counts. Desuden er alle prøver hvor CC_from_culture er unknown eller missing blevet filtreret fra. DVS 116 prøver inkluderet ialt.
+
+
+df_smed_2<-df_smed %>% select(Sample,SampleID_short,CC_from_culture,Clonal_complex,Abundance,OTU,samplesite) %>%
+mutate(cc_asv=paste(OTU,Clonal_complex,sep="_")) %>%
+mutate(Abundance=ifelse(Abundance>0,"1","0")) %>%
+pivot_wider(id_cols = c("Sample","SampleID_short","samplesite","CC_from_culture"),names_from = "cc_asv",values_from = "Abundance") %>%
+mutate(concordance=case_when(
+CC_from_culture == "CC1" & `ASV_1_CC1` == "1" ~"Concordance", #NB, only ASV1 (seq_6) detected among the CC1 culture positive.
+CC_from_culture == "CC1" & `ASV_15_CC1` == "1" ~"Concordance",
+CC_from_culture == "CC1" & `ASV_16_M2/CC1` == "1" ~"Concordance",
+CC_from_culture == "CC1" & `ASV_21_CC1` == "1" ~"Concordance",
+CC_from_culture == "CC1" & `ASV_26_CC1` == "1" ~"Concordance",
+CC_from_culture == "CC1" & `ASV_30_M2/CC1` == "1" ~"Concordance",
+CC_from_culture == "CC1" & `ASV_31_CC1` == "1" ~"Concordance",
+CC_from_culture == "CC1" & `ASV_7_M2/CC1/M1/-` == "1" ~"Concordance",
+
+CC_from_culture == "CC15" & `ASV_13_CC15/CC97` == "1" ~"Concordance",
+CC_from_culture == "CC15" & `ASV_23_CC15/CC97` == "1" ~"Concordance",
+CC_from_culture == "CC15" & `ASV_3_CC15/CC97` == "1" ~"Concordance", # NB, only ASV3 (seq11) identified among the CC15 culture postive samples. when looking ehithn the CC group. Also a CC45 in one case
+
+CC_from_culture == "CC182" ~"No concordance", # NB, no STs classfied as CC182 in the database. So this can not be detected.
+
+CC_from_culture == "CC22" & `ASV_8_CC22/CC8/-` == "1" ~"Concordance",
+CC_from_culture == "CC30" & `ASV_2_CC30/-` == "1" ~"Concordance", #NB, only ASV2 (seq5) identified among the CC30 culture positive cases.
+CC_from_culture == "CC30" & `ASV_25_CC30/-` == "1" ~"Concordance",
+CC_from_culture == "CC398" & `ASV_19_CC398` == "1" ~"Concordance",
+CC_from_culture == "CC398" & `ASV_5_CC398` == "1" ~"Concordance",
+CC_from_culture == "CC45" & `ASV_6_CC45` == "1" ~"Concordance",
+CC_from_culture == "CC5" & `ASV_17_CC5` == "1" ~"Concordance",
+CC_from_culture == "CC5" & `ASV_18_CC5` == "1" ~"Concordance",
+CC_from_culture == "CC5" & `ASV_27_CC5` == "1" ~"Concordance",
+CC_from_culture == "CC5" & `ASV_4_CC5` == "1" ~"Concordance", #NB, among the CC5 culture postive, only ASV4 (seq_1) was detected
+
+CC_from_culture == "CC509" ~"No concordance", # NB, no STs classfied as CC509 in the database. So this can not be detected.
+
+CC_from_culture == "CC59" & `ASV_12_CC59/-` == "1" ~"Concordance",
+
+CC_from_culture == "CC7" & `ASV_8_CC22/CC8/-` == "1" ~"Concordance", #NB, AV8 (seq_3) also includes a ST7. Thus concordance, in case on match to an seq_3
+
+CC_from_culture == "CC8" & `ASV_10_CC8` == "1" ~"Concordance", #NB, only ASV10 (seq2) among the CC8 culture pos cases.also few samples with CC30.
+CC_from_culture == "CC8" & `ASV_28_CC8` == "1" ~"Concordance",
+CC_from_culture == "CC8" & `ASV_8_CC22/CC8/-` == "1" ~"Concordance",
+
+CC_from_culture == "CC97" & `ASV_11_CC97` == "1" ~"Concordance",
+CC_from_culture == "CC97" & `ASV_13_CC15/CC97` == "1" ~"Concordance",
+CC_from_culture == "CC97" & `ASV_23_CC15/CC97` == "1" ~"Concordance",
+CC_from_culture == "CC97" & `ASV_3_CC15/CC97` == "1" ~"Concordance",
+
+TRUE ~"No concordance"
+))
+```
+
+Overall numbers of cases with and without concordance between single colony classification and aureome amplicon sequence based classification. total number included in analysis: N=116 (When I did the analysis!!)
+```{r}
+table(df_smed_2$concordance)
+```
+
+
+Excluding dulikated samples --> total nu,ber of included samples: N=78
+```{r}
+df_smed_3<-df_smed_2 %>% distinct(SampleID_short,.keep_all = T)
+dim(df_smed_3) # 78 samples
+table(df_smed_3$concordance)
+```
+
+**Comparison accross samplesites**
+```{r}
+'Numbers'
+table(df_smed_3$samplesite,df_smed_3$concordance)
+'percentage'
+prop.table(table(df_smed_3$samplesite,df_smed_3$concordance),1)
+```
+
+**Comparison accross clonal lineages**
+```{r}
+'Numbers'
+table(df_smed_3$CC_from_culture,df_smed_3$concordance)
+'percentage'
+prop.table(table(df_smed_3$CC_from_culture,df_smed_3$concordance),1)
+```
+
+
+
+
+
+
+
+
+

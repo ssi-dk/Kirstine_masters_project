@@ -1,0 +1,70 @@
+---
+title: 'Identification of target genes'
+output: html_document
+---
+
+**Loading packages**
+```{r include=FALSE}
+library(tidyverse)
+library(dplyr)
+library(ggplot2)
+```
+
+
+**Load data**
+```{r}
+gene_data_Parsing1_full = read.table("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/parsing_gene_variance/gene_variance.txt",header = TRUE,sep = "\t")
+names(gene_data_Parsing1_full)<-c("Gene","Startposition_1","Endposition_500","Average_SNP_diff_between_2_iso","Percentage_of_iso_w_SNPs")
+gene_presence_absence = read.table("/Volumes/data/MPV/projects/microbiome/Aureome_development/data/roary_out_prokka/gene_presence_absence.csv",header = TRUE,sep = ",")
+core_genes = gene_presence_absence$Gene[which(gene_presence_absence$No..isolates==51)]
+
+gene_data_Parsing1 = gene_data_Parsing1_full[which(gene_data_Parsing1_full$Gene %in% core_genes),]
+```
+
+**Max percentage of isolates within a given sliding window**
+```{r}
+max(gene_data_Parsing1$Percentage_of_iso_w_SNPs)
+```
+
+**Filter data**
+```{r}
+##Genes with SNPs in each isolate are kept
+best_genes<-gene_data_Parsing1 %>% filter(Percentage_of_iso_w_SNPs>0.985)
+##howmany sliding windows?
+nrow(best_genes)
+##how many unique genes?
+length(unique(best_genes$Gene))
+```
+
+**Sort uniuqe genes**
+```{r}
+sort((unique(best_genes$Gene)))
+```
+
+**Finding genes with highest SNP average between any two isolates**
+```{r}
+##1 row: Gene name
+##2 row: Start position for sliding window 
+##3 row: End position for sliding window (Max. 500)
+##4 row: The average SNP differences between two isolates within the sliding window 
+##5 row: Percentage of the pairwise alignment between two isolates with min. 1 SNP difference. 1 means that all isolates have minimum 1 SNP, 0 means that all isolates are 100% identical in that certain region. 
+
+best_genes<-best_genes %>% arrange(desc(Average_SNP_diff_between_2_iso))
+best_genes
+```
+
+**Single gene analysis, NuoL gene**
+```{r}
+##Single gene definition
+nuoL<-best_genes %>% filter(Gene=="nuoL")
+##how many unique average SNP differences between two isolates 
+sort(unique(nuoL$Average_SNP_diff_between_2_iso))
+```
+
+```{r}
+df<-gene_data_Parsing1 %>% filter(Gene=="nuoL")
+min(df$Startposition_1)
+max(df$Endposition_500)
+```
+
+

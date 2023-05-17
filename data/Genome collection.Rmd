@@ -1,0 +1,57 @@
+---
+title: "Genome collection"
+output: html_document
+---
+
+**Loading packages**
+```{r}
+suppressMessages(library(tidyverse))
+suppressMessages(library(stringr))
+suppressMessages(library(magrittr))
+```
+
+**Load data**
+```{r}
+csv_path <- '/Volumes/data/MPV/projects/microbiome/Aureome_development/data/refseq_assembly_stats_and_mlst.csv'
+data <- read_delim(csv_path, delim = ';')
+```
+
+**lapply functions** 
+```{r}
+##Split dataset by ST
+
+##Isolates with min. 5 avaliable genomes
+##Isolates are sortet based on N_count and contig number 
+good_samples_5 <- data %>% split(data$ST) %>% lapply(function(x){
+  seqs_with_min <- filter(x, seq_count==min(seq_count))
+  min_N_count <- seqs_with_min %>% filter(N_count==min(N_count))
+  #return(min_N_count)
+  if(nrow(x)>4){
+    return(min_N_count[1, ])
+  }
+}) %>% 
+  bind_rows()
+
+
+count_matching_rows <- function(st, orig.vector){
+  st.count <- orig.vector==st
+  return(sum(st.count))
+}
+```
+
+**Sanity check**
+```{r}
+good_samples_5$ST %>% lapply(function(x){data %>% filter(ST==x) %>% nrow()}) %>% unlist()
+dim(data)
+
+write.table(good_samples_5,"/Users/kirstinebjergandersen/Desktop/Genomes_5.tsv",sep="\t",row.names=FALSE)
+
+good_samples_5
+```
+
+**How many avaliable genomes**
+```{r}
+length(good_samples_5$ST)
+```
+
+
